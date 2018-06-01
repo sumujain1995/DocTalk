@@ -25,12 +25,7 @@ class UserModel : Mappable
             if let tempName = name{
                 BaseWebService.sharedInstance.getFollowersCount(name: tempName) { (response, error) in
                     if let userResponse = response{
-                        do {
-                            
-                            self.followersCount = userResponse.count
-                        }catch let error{
-                            print(error.localizedDescription)
-                        }
+                        self.followersCount = userResponse.count
                     }
                 }
             }
