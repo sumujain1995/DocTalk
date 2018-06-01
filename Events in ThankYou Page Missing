@@ -1,0 +1,131 @@
+let chargedDetails:[String:AnyObject] = [
+            "Amount"        : self.orderDetail.order?.total != nil ? (self.orderDetail.order?.total)! as AnyObject : 0 as AnyObject,
+            "Currency"      : "INR" as AnyObject,
+            "payment_mode"  : self.orderDetail.order?.method != nil ? (self.orderDetail.order?.method)! as AnyObject : "" as AnyObject,
+            "source"        : "IOS APP" as AnyObject,
+            "Charged ID"    : self.orderDetail.order?.id != nil ? (self.orderDetail.order?.id)! as AnyObject : "" as AnyObject
+        ]
+        
+        var fireBaseData:[String: Any] = [:]
+        
+        var amount: Double = 0
+        if let amt = self.orderDetail.order?.total, let amtDouble = Double(amt)
+        {
+            amount = amtDouble
+        }
+        fireBaseData["Amount"] = amount
+        fireBaseData["Currency"] = "INR"
+        fireBaseData["Source"] = "IOS APP"
+        
+        var paymentMethodStr = ""
+        if let paymentMethod = self.orderDetail.order?.method
+        {
+            paymentMethodStr = paymentMethod
+        }
+        fireBaseData["Checkout_Option"] = paymentMethodStr
+        
+        var paymentIdStr = ""
+        if let paymentId = self.orderDetail.order?.id
+        {
+            paymentIdStr = paymentId
+        }
+        fireBaseData["Charged ID"] = paymentIdStr
+        
+        var itemArray = [AnyObject]()
+        var arrayItemsForGATransaction = [[String:AnyObject]]()
+        var arrayItemsForGAPurchase = [[String:AnyObject]]()
+        if self.orderDetail.order?.orderitems != nil {
+            for orderItem in (self.orderDetail.order?.orderitems)! {
+                let item = [
+                    "product_name"      : orderItem.productName !=  nil ? orderItem.productName! : "" ,
+                    "product_id"        : orderItem.productId != nil ? orderItem.productId! : "" ,
+                    "product_quantity"  : orderItem.quantity != nil ? orderItem.quantity! : "",
+                    "product_mrp"       : orderItem.unitPrice != nil ? orderItem.unitPrice! : "",
+                    "product_our_price" : orderItem.ourPrice != nil ? orderItem.ourPrice! : "",
+                    "product_order_id"  : orderItem.orderId != nil ? orderItem.orderId! : ""
+                ]
+                itemArray.append(item as AnyObject)
+                
+                let itemForGA = [
+                    "name" : orderItem.productName !=  nil ? orderItem.productName! : "",
+                    "sku" : orderItem.productSku != nil ? orderItem.productSku! : "",
+                    "currency" : "INR",
+                    "quantity" : orderItem.quantity != nil ? orderItem.quantity! : "",
+                    "price" : orderItem.ourPrice != nil ? orderItem.ourPrice! : "",
+                    "category" : "product"
+                ]
+                
+                let itemForGAEnhancedPurchase = [
+                    "name" : orderItem.productName !=  nil ? orderItem.productName! : "",
+                    "id" : orderItem.id != nil ? orderItem.id! : "",
+                    "quantity" : orderItem.quantity != nil ? orderItem.quantity! : "",
+                    "price" : orderItem.ourPrice != nil ? orderItem.ourPrice! : "",
+                    "category" : "product"
+                ]
+                
+                arrayItemsForGATransaction.append(itemForGA as [String : AnyObject])
+                arrayItemsForGAPurchase.append(itemForGAEnhancedPurchase as [String : AnyObject])
+            }
+            
+        }
+        
+        // Since the data layer is persistent, you should reset fields to [NSNull null] after
+        // you are done pushing the transaction.
+        Events.sendGoogleAnalyticsEventsThroughGTM(.GA_TRANSACTION, eventDesciption: [
+            "event" : "transaction" as AnyObject,
+            "transactionId" : (self.orderDetail.order?.id != nil ? self.orderDetail.order?.id! : "")! as AnyObject,
+            "transactionTotal" : (self.orderDetail.order?.total != nil ? self.orderDetail.order?.total! : "")! as AnyObject,
+            "transactionAffiliation" : "" as AnyObject,
+            "transactionTax" : "" as AnyObject,
+            "transactionShipping" : (self.orderDetail.order?.shipping != nil ? self.orderDetail.order?.shipping! : "")! as AnyObject,
+            "transactionCurrency" : "INR" as AnyObject,
+            "transactionProducts" : arrayItemsForGATransaction as AnyObject
+            ])
+        
+        Events.sendGoogleAnalyticsEventsThroughGTM(.GA_TRANSACTION, eventDesciption: [
+            "transactionId" : NSNull(),
+            "transactionTotal" : NSNull(),
+            "transactionAffiliation" : NSNull(),
+            "transactionTax" : NSNull(),
+            "transactionShipping" : NSNull(),
+            "transactionCurrency" : NSNull(),
+            "transactionProducts" : NSNull()
+            ])
+        
+        let actionField = [
+            "id" : (self.orderDetail.order?.id != nil ? self.orderDetail.order?.id! : "")!,
+            "revenue" : (self.orderDetail.order?.total != nil ? self.orderDetail.order?.total! : "")!,
+            "shipping" : (self.orderDetail.order?.shipping != nil ? self.orderDetail.order?.shipping! : "")!,
+            "coupon" : (self.orderDetail.order?.discountDetails?.coupon != nil ? self.orderDetail.order?.discountDetails?.coupon! : "")!
+        ]
+        
+        Events.sendGoogleAnalyticsEventsThroughGTM(.GA_ENHANCED_PURCHASE, eventDesciption: [
+            "actionField" : actionField as AnyObject,
+            "products" : arrayItemsForGAPurchase as AnyObject
+            ])
+        
+        let actionFieldForCheckOutSteps = [
+            "step" : "4" ,
+            "option" : optionForGA
+        ]
+        
+        Events.sendGoogleAnalyticsEventsThroughGTM(.GA_CHECKOUT_STEPS, eventDesciption: [
+            "actionField" : actionFieldForCheckOutSteps as AnyObject ,
+            "products"  : arrayItemsForGAPurchase as AnyObject
+            ])
+        
+        Events.sendGoogleAnalyticsEventsThroughGTM(.GA_AD_WORDS_CONVERSION, eventDesciption: ["conversionValue" : self.orderDetail.order?.total != nil ? (self.orderDetail.order?.total!)! as AnyObject : "" as AnyObject])
+        
+        FBSDKAppEvents.logPurchase(Double(self.orderDetail.order?.total != nil ? (self.orderDetail.order?.total!)! : "")!, currency: "INR")
+        
+        Branch.getInstance().userCompletedAction(self.orderDetail.order?.total != nil ? (self.orderDetail.order?.total!)! : "")
+        
+        Events.sendCleverTapChargedEvent(chargedDetails, items: itemArray,firebaseData: fireBaseData)
+        
+        Events.sendCleverTapEvent(.PAGE_VIEW, item: nil, eventDesciption: [ "page_type" : "OrderPlacedScreen" as AnyObject,
+                                                                            "section":"product" as AnyObject,
+                                                                            "page_title":self.orderDetail.order?.paymentPending != nil ? (self.orderDetail.order?.paymentPending)! == 0 ? "OrderPlacedScreen" as AnyObject : "OrderPendingScreen" as AnyObject : "" as AnyObject,
+                                                                            "page_type_value":self.orderDetail.order?.id != nil ? self.orderDetail.order!.id! as AnyObject : "" as AnyObject,
+                                                                            "ga_screen" : "OrderPlacedScreen" as AnyObject,
+                                                                            "device_id":WebService.sharedInstance.deviceId() as AnyObject
+            ])
